@@ -1,32 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
-import { getAddress, isConnected, requestAccess } from "@stellar/freighter-api";
 import { STAGES } from "../hooks/useOracleRun.ts";
 
 interface Props {
   stage: number;
   verified: boolean | null;
+  address: string;
+  connecting: boolean;
+  onConnect: () => void;
 }
 
-export default function LeftRail({ stage, verified }: Props) {
-  const [addr, setAddr] = useState("");
-
-  const connect = useCallback(async () => {
-    try {
-      if (!(await isConnected()).isConnected) {
-        alert("Freighter not detected — it's optional here (all calls are read-only).");
-        return;
-      }
-      const r = await requestAccess();
-      if (!r.error) setAddr(r.address);
-    } catch {
-      /* optional */
-    }
-  }, []);
-
-  useEffect(() => {
-    getAddress().then((r) => r.address && setAddr(r.address)).catch(() => {});
-  }, []);
-
+export default function LeftRail({ stage, verified, address, connecting, onConnect }: Props) {
   return (
     <aside className="lg:sticky lg:top-0 lg:h-screen flex lg:flex-col justify-between py-6 lg:py-8 lg:pr-8 lg:border-r border-line">
       <div>
@@ -35,7 +17,6 @@ export default function LeftRail({ stage, verified }: Props) {
           <span className="font-display font-black text-xl tracking-tight">Soracle</span>
         </div>
 
-        {/* stepper — desktop only */}
         <nav className="hidden lg:block mt-12">
           {STAGES.map((s, i) => {
             const idx = i + 1;
@@ -45,12 +26,8 @@ export default function LeftRail({ stage, verified }: Props) {
             const color = bad ? "var(--alarm)" : ok && lit ? "var(--verified)" : lit ? "var(--process)" : "var(--dim)";
             return (
               <div key={s} className="flex items-center gap-3 py-2">
-                <span className="font-display font-black text-sm tabular w-5" style={{ color }}>
-                  {idx}
-                </span>
-                <span className="label" style={{ color: lit ? color : "var(--dim)" }}>
-                  {s}
-                </span>
+                <span className="font-display font-black text-sm tabular w-5" style={{ color }}>{idx}</span>
+                <span className="label" style={{ color: lit ? color : "var(--dim)" }}>{s}</span>
               </div>
             );
           })}
@@ -67,10 +44,11 @@ export default function LeftRail({ stage, verified }: Props) {
           <div className="text-dim/80 break-all">soroban-testnet.stellar.org</div>
         </div>
         <button
-          onClick={connect}
-          className="w-full text-left border border-line px-3 py-2 hover:border-dim transition-colors"
+          onClick={onConnect}
+          className="w-full text-left border px-3 py-2 transition-colors"
+          style={{ borderColor: address ? "var(--verified)" : "var(--line)", color: address ? "var(--verified)" : "var(--muted)" }}
         >
-          {addr ? `◦ ${addr.slice(0, 4)}…${addr.slice(-4)}` : "connect freighter →"}
+          {address ? `◦ ${address.slice(0, 4)}…${address.slice(-4)}` : connecting ? "connecting…" : "connect freighter →"}
         </button>
       </div>
     </aside>

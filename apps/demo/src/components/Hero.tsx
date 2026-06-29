@@ -5,7 +5,6 @@ import HeldSignal from "./HeldSignal.tsx";
 
 interface Props {
   feed1: FeedEntry | null;
-  running: boolean;
   onRun: () => void;
 }
 
@@ -18,7 +17,7 @@ const rise: Variants = {
   }),
 };
 
-export default function Hero({ feed1, running, onRun }: Props) {
+export default function Hero({ feed1, onRun }: Props) {
   const f = FEEDS[0];
   return (
     <section className="relative z-10 pt-6 sm:pt-10 pb-14 grid lg:grid-cols-[1.25fr_1fr] gap-10 lg:gap-16 items-center">
@@ -53,14 +52,13 @@ export default function Hero({ feed1, running, onRun }: Props) {
         <motion.div custom={5} variants={rise} initial="hidden" animate="show" className="mt-9 flex items-center gap-4">
           <button
             onClick={onRun}
-            disabled={running}
-            className="group relative px-6 py-3 text-[13px] font-medium tracking-wide border transition-colors disabled:opacity-50"
+            className="group relative px-6 py-3 text-[13px] font-medium tracking-wide border transition-colors"
             style={{ borderColor: "var(--verified)", color: "var(--verified)", background: "var(--verified-dim)" }}
           >
-            {running ? "running…" : "▷ Run the oracle"}
+            ▷ Initiate a feed ↓
           </button>
-          <a href="#prover" className="text-[13px] text-muted hover:text-text transition-colors underline underline-offset-4 decoration-line">
-            or prove one yourself
+          <a href="#consoles" className="text-[13px] text-muted hover:text-text transition-colors underline underline-offset-4 decoration-line">
+            sports · wallet PnL · dev reputation
           </a>
         </motion.div>
       </div>

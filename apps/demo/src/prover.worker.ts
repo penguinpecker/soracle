@@ -1,40 +1,35 @@
 /// <reference lib="webworker" />
-// Real Groth16 proving in the browser, off the main thread.
-// Loads the consensus circuit artifacts as Uint8Array (NOT URL strings — the
-// process.browser polyfill makes snarkjs/fastfile treat strings as Node paths),
-// computes the Poseidon commitment with poseidon-lite (byte-identical to the
-// in-circuit circomlib Poseidon), and proves Consensus(3,2).
+// Real Groth16 proving in the browser, off the main thread, for BOTH circuits:
+//   consensus  (Quorum(3,2))   — sports / multi-source web2 feeds
+//   derivation (Σ sell-buy-fee) — cross-chain PnL (web3) + reputation (web2)
+// Artifacts load as Uint8Array (NOT URL strings — the process.browser polyfill
+// makes snarkjs/fastfile treat strings as Node paths). poseidon-lite is
+// byte-identical to the in-circuit circomlib Poseidon.
 import { groth16 } from "snarkjs";
-import { poseidon4 } from "poseidon-lite";
+import { poseidon4, poseidon16 } from "poseidon-lite";
 
 const DEMO_SALT = 1234567890n;
-const WASM_URL = "/circuits/consensus.wasm";
-const ZKEY_URL = "/circuits/consensus.zkey";
-
-let wasm: Uint8Array | null = null;
-let zkey: Uint8Array | null = null;
-
-type Progress = { type: "progress"; stage: string; pct: number };
-type Done = {
-  type: "done";
-  result: string; // decimal
-  commitment: string; // decimal
-  proof: unknown;
-  publicSignals: string[];
+const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+const ART: Record<string, { wasm: string; zkey: string }> = {
+  consensus: { wasm: "/circuits/consensus.wasm", zkey: "/circuits/consensus.zkey" },
+  derivation: { wasm: "/circuits/derivation.wasm", zkey: "/circuits/derivation.zkey" },
 };
-type Err = { type: "error"; message: string };
+const cache: Record<string, { wasm?: Uint8Array; zkey?: Uint8Array }> = {
+  consensus: {},
+  derivation: {},
+};
 
-function post(msg: Progress | Done | Err) {
+function post(msg: any) {
   (self as unknown as Worker).postMessage(msg);
 }
-
 async function load(url: string): Promise<Uint8Array> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
   return new Uint8Array(await res.arrayBuffer());
 }
-
-/** value reported by >= 2 of 3 sources (Quorum(3,2)); null if no quorum. */
+function mod(x: bigint): bigint {
+  return ((x % FIELD) + FIELD) % FIELD;
+}
 function quorum(values: bigint[]): bigint | null {
   const counts = new Map<string, number>();
   for (const v of values) counts.set(v.toString(), (counts.get(v.toString()) ?? 0) + 1);
@@ -44,48 +39,72 @@ function quorum(values: bigint[]): bigint | null {
 }
 
 self.onmessage = async (e: MessageEvent) => {
-  const { values, timestamp, epoch } = e.data as {
-    values: string[];
+  const { circuit, payload, timestamp, epoch } = e.data as {
+    circuit: "consensus" | "derivation";
+    payload: any;
     timestamp: number;
     epoch: number;
   };
   try {
-    const vals = values.map((v) => BigInt(v));
-    const result = quorum(vals);
-    if (result === null) {
-      post({ type: "error", message: "no quorum: at least 2 of 3 sources must agree — cannot prove" });
-      return;
+    let input: Record<string, unknown>;
+    let result: bigint;
+    let commitment: bigint;
+
+    if (circuit === "consensus") {
+      const vals = (payload.values as string[]).map((v) => BigInt(v));
+      const q = quorum(vals);
+      if (q === null) {
+        post({ type: "error", message: "no quorum — at least 2 of 3 sources must agree" });
+        return;
+      }
+      result = q;
+      post({ type: "progress", stage: "Computing Poseidon commitment", pct: 40 });
+      commitment = poseidon4([vals[0], vals[1], vals[2], DEMO_SALT]) as bigint;
+      input = {
+        feed_id: "1",
+        n_sources: "3",
+        result: result.toString(),
+        inputs_commitment: commitment.toString(),
+        timestamp: String(timestamp),
+        epoch: String(epoch),
+        values: vals.map((v) => v.toString()),
+        salt: DEMO_SALT.toString(),
+      };
+    } else {
+      // pad to M=5 records
+      const recs = (payload.records as { buy: string; sell: string; fee: string }[]).slice(0, 5);
+      while (recs.length < 5) recs.push({ buy: "0", sell: "0", fee: "0" });
+      const buy = recs.map((r) => BigInt(r.buy));
+      const sell = recs.map((r) => BigInt(r.sell));
+      const fee = recs.map((r) => BigInt(r.fee));
+      const pnl = sell.reduce((a, s, i) => a + s - buy[i] - fee[i], 0n);
+      result = mod(pnl);
+      post({ type: "progress", stage: "Computing Poseidon commitment", pct: 40 });
+      commitment = poseidon16([...buy, ...sell, ...fee, DEMO_SALT]) as bigint;
+      input = {
+        feed_id: String(payload.feedId ?? 2),
+        wallet_id_hash: String(payload.subjectHash ?? "0"),
+        result: result.toString(),
+        inputs_commitment: commitment.toString(),
+        timestamp: String(timestamp),
+        epoch: String(epoch),
+        buy: buy.map((v) => v.toString()),
+        sell: sell.map((v) => v.toString()),
+        fee: fee.map((v) => v.toString()),
+        salt: DEMO_SALT.toString(),
+      };
     }
 
-    post({ type: "progress", stage: "Loading circuit + proving key", pct: 8 });
-    if (!wasm) wasm = await load(WASM_URL);
-    post({ type: "progress", stage: "Loading circuit + proving key", pct: 30 });
-    if (!zkey) zkey = await load(ZKEY_URL);
+    post({ type: "progress", stage: "Loading circuit + proving key", pct: 12 });
+    const c = cache[circuit];
+    if (!c.wasm) c.wasm = await load(ART[circuit].wasm);
+    if (!c.zkey) c.zkey = await load(ART[circuit].zkey);
 
-    post({ type: "progress", stage: "Computing Poseidon commitment", pct: 42 });
-    const commitment = poseidon4([vals[0], vals[1], vals[2], DEMO_SALT]) as bigint;
-
-    post({ type: "progress", stage: "Generating Groth16 proof", pct: 55 });
-    const input = {
-      feed_id: "1",
-      n_sources: "3",
-      result: result.toString(),
-      inputs_commitment: commitment.toString(),
-      timestamp: String(timestamp),
-      epoch: String(epoch),
-      values: vals.map((v) => v.toString()),
-      salt: DEMO_SALT.toString(),
-    };
-    const { proof, publicSignals } = await groth16.fullProve(input, wasm, zkey);
+    post({ type: "progress", stage: "Generating Groth16 proof", pct: 60 });
+    const { proof, publicSignals } = await groth16.fullProve(input, c.wasm, c.zkey);
 
     post({ type: "progress", stage: "Proof ready", pct: 100 });
-    post({
-      type: "done",
-      result: result.toString(),
-      commitment: commitment.toString(),
-      proof,
-      publicSignals,
-    });
+    post({ type: "done", result: result.toString(), commitment: commitment.toString(), proof, publicSignals });
   } catch (err) {
     post({ type: "error", message: (err as Error).message ?? String(err) });
   }

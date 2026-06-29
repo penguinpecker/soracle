@@ -8,6 +8,7 @@ export interface ProveOutput {
   publicSignals: string[];
 }
 export type OnProgress = (p: { stage: string; pct: number }) => void;
+export type Circuit = "consensus" | "derivation";
 
 /** Lazily spins up the proving Web Worker and runs one proof per call. */
 export function useProver() {
@@ -30,7 +31,13 @@ export function useProver() {
   }, []);
 
   const prove = useCallback(
-    (values: number[], ts: number, epoch: number, onProgress?: OnProgress): Promise<ProveOutput> =>
+    (
+      circuit: Circuit,
+      payload: unknown,
+      ts: number,
+      epoch: number,
+      onProgress?: OnProgress,
+    ): Promise<ProveOutput> =>
       new Promise((resolve, reject) => {
         const w = getWorker();
         const onMsg = (e: MessageEvent) => {
@@ -45,7 +52,7 @@ export function useProver() {
           }
         };
         w.addEventListener("message", onMsg);
-        w.postMessage({ values: values.map(String), timestamp: ts, epoch });
+        w.postMessage({ circuit, payload, timestamp: ts, epoch });
       }),
     [getWorker],
   );
