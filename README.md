@@ -15,6 +15,9 @@ Built for **Stellar Hacks: Real-World ZK**.
 
 ## Live on Stellar Testnet
 
+**Demo:** https://soracle-two.vercel.app — live feeds (read from the registry) +
+the on-chain tamper-rejection button.
+
 The contracts are deployed and initialized on Testnet:
 
 | Contract | ID |
