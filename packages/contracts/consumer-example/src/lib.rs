@@ -19,7 +19,13 @@ pub enum Error {
     AlreadySettled = 3,
     MarketClosed = 4,
     FeedNotReady = 5,
+    InvalidAmount = 6,
+    MarketStillOpen = 7,
 }
+
+// ~1 day / ~31 days in 5s ledgers.
+const TTL_THRESHOLD: u32 = 17_280;
+const TTL_EXTEND_TO: u32 = 535_680;
 
 /// Mirror of registry::FeedEntry (cross-contract structs match by field).
 #[contracttype]
@@ -63,8 +69,9 @@ pub struct Consumer;
 
 #[contractimpl]
 impl Consumer {
-    pub fn init(env: Env, registry: Address) {
+    pub fn __constructor(env: Env, registry: Address) {
         env.storage().instance().set(&DataKey::Registry, &registry);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     pub fn create_market(env: Env, market_id: u32, feed_id: u32, close_ts: u64) {
@@ -79,6 +86,7 @@ impl Consumer {
         env.storage()
             .persistent()
             .set(&DataKey::Bets(market_id), &Vec::<Bet>::new(&env));
+        bump(&env, market_id);
     }
 
     pub fn bet(
@@ -89,6 +97,9 @@ impl Consumer {
         amount: i128,
     ) -> Result<(), Error> {
         bettor.require_auth();
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
         let mut market: Market = env
             .storage()
             .persistent()
@@ -111,6 +122,7 @@ impl Consumer {
         market.total_pool += amount;
         env.storage().persistent().set(&DataKey::Market(market_id), &market);
         env.storage().persistent().set(&DataKey::Bets(market_id), &bets);
+        bump(&env, market_id);
         Ok(())
     }
 
@@ -124,6 +136,10 @@ impl Consumer {
         if market.settled {
             return Err(Error::AlreadySettled);
         }
+        // settle only after the market closes (matches bet()'s close enforcement)
+        if env.ledger().timestamp() < market.close_ts {
+            return Err(Error::MarketStillOpen);
+        }
 
         let registry: Address = env
             .storage()
@@ -136,6 +152,10 @@ impl Consumer {
             vec![&env, market.feed_id.into_val(&env)],
         );
         let entry = entry.ok_or(Error::FeedNotReady)?;
+        // resolve only on a feed observation at/after close — never a stale value
+        if entry.timestamp < market.close_ts {
+            return Err(Error::FeedNotReady);
+        }
         let winning_value = entry.value;
 
         let mut bets: Vec<Bet> = env
@@ -170,6 +190,7 @@ impl Consumer {
         market.winning_value = winning_value;
         env.storage().persistent().set(&DataKey::Market(market_id), &market);
         env.storage().persistent().set(&DataKey::Bets(market_id), &bets);
+        bump(&env, market_id);
         env.events().publish(
             (Symbol::new(&env, "market_settled"), market_id),
             winning_value,
@@ -187,6 +208,13 @@ impl Consumer {
             .get(&DataKey::Bets(market_id))
             .unwrap_or(Vec::new(&env))
     }
+}
+
+fn bump(env: &Env, market_id: u32) {
+    let p = env.storage().persistent();
+    p.extend_ttl(&DataKey::Market(market_id), TTL_THRESHOLD, TTL_EXTEND_TO);
+    p.extend_ttl(&DataKey::Bets(market_id), TTL_THRESHOLD, TTL_EXTEND_TO);
+    env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
 }
 
 mod test;

@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 // Soracle admin/ops CLI.
-//   tsx src/cli.ts init                 # init verifier+registry, wire them
+//   (init happens at deploy via each contract's __constructor — see deploy.sh)
 //   tsx src/cli.ts register-vkey <c>    # register a circuit's vkey (admin)
 //   tsx src/cli.ts register-feeds       # register every enabled feed (admin)
 //   tsx src/cli.ts tick [feedId]        # one fetch->prove->publish for a/all feeds
@@ -10,17 +10,12 @@ import { loadAdapters } from "./adapters/index.js";
 import { CIRCUIT_ID, circuitArtifacts } from "./config.js";
 import { prove, verifyLocal } from "./prover.js";
 import { runOnce } from "./scheduler.js";
-import { initContracts, publishFeed, registerFeed, registerVkey } from "./submit.js";
+import { publishFeed, registerFeed, registerVkey } from "./submit.js";
 
 const [cmd, arg] = process.argv.slice(2);
 
 async function main() {
   switch (cmd) {
-    case "init":
-      await initContracts();
-      console.log("✓ verifier + registry initialized");
-      break;
-
     case "register-vkey": {
       const circuit = arg ?? "consensus";
       await registerVkey(circuit);
@@ -76,7 +71,7 @@ async function main() {
     }
 
     default:
-      console.log("usage: cli.ts <init|register-vkey|register-feeds|tick|tamper> [arg]");
+      console.log("usage: cli.ts <register-vkey|register-feeds|tick|tamper> [arg]");
       process.exitCode = 1;
   }
 }

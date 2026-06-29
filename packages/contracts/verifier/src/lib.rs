@@ -18,7 +18,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype,
-    crypto::bn254::{Bn254G1Affine, Bn254G2Affine, Fr},
+    crypto::bn254::{Bn254Fr, Bn254G1Affine, Bn254G2Affine},
     vec, Address, Bytes, BytesN, Env, Vec, U256,
 };
 
@@ -27,10 +27,13 @@ use soroban_sdk::{
 #[repr(u32)]
 pub enum Error {
     NotInitialized = 1,
-    AlreadyInitialized = 2,
     UnknownVk = 3,
     MalformedVk = 4,
 }
+
+// ~1 day / ~31 days in 5s ledgers — keep entries live well past any demo window.
+const TTL_THRESHOLD: u32 = 17_280;
+const TTL_EXTEND_TO: u32 = 535_680;
 
 /// Groth16 proof in raw on-chain byte form (decoded to affine points inside).
 #[contracttype]
@@ -63,13 +66,11 @@ pub struct Verifier;
 
 #[contractimpl]
 impl Verifier {
-    /// One-time admin setup.
-    pub fn init(env: Env, admin: Address) -> Result<(), Error> {
-        if env.storage().instance().has(&DataKey::Admin) {
-            return Err(Error::AlreadyInitialized);
-        }
+    /// Admin is bound atomically at deploy time (no separate init -> no
+    /// front-running window between deploy and init).
+    pub fn __constructor(env: Env, admin: Address) {
         env.storage().instance().set(&DataKey::Admin, &admin);
-        Ok(())
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     /// Register / replace a verifying key for `vk_id` (admin only).
@@ -84,6 +85,11 @@ impl Verifier {
             return Err(Error::MalformedVk);
         }
         env.storage().persistent().set(&DataKey::Vk(vk_id), &vk);
+        // keep the (write-once, read-forever) vkey from being archived
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Vk(vk_id), TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
         Ok(())
     }
 
@@ -100,6 +106,10 @@ impl Verifier {
             .persistent()
             .get(&DataKey::Vk(vk_id))
             .ok_or(Error::UnknownVk)?;
+        // bump the hot vkey on every verify so an active feed never archives it
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Vk(vk_id), TTL_THRESHOLD, TTL_EXTEND_TO);
 
         // One IC point per public input, plus IC[0].
         if public_inputs.len() + 1 != vk.ic.len() {
@@ -146,9 +156,9 @@ fn g2(env: &Env, b: &BytesN<128>) -> Bn254G2Affine {
     Bn254G2Affine::from_array(env, &b.to_array())
 }
 
-fn fr(env: &Env, b: &BytesN<32>) -> Fr {
+fn fr(env: &Env, b: &BytesN<32>) -> Bn254Fr {
     let bytes = Bytes::from_array(env, &b.to_array());
-    Fr::from_u256(U256::from_be_bytes(env, &bytes))
+    Bn254Fr::from_u256(U256::from_be_bytes(env, &bytes))
 }
 
 mod test;

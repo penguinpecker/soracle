@@ -19,15 +19,17 @@ The contracts are deployed and initialized on Testnet:
 
 | Contract | ID |
 |---|---|
-| Verifier | `CAK7BOFFQ7R7CFZWRVCAVL3R67E6ETMVH2T7RTTRGXLIWSAMKKYDPFWZ` |
-| Registry | `CAE6NHSNEVA6N2IUABL6UATSPQH3VQ5VSXBBNVD2I7YQL6Y5S6RH6KNW` |
-| Consumer (market) | `CDDBJKDVM5XRPLIPOXMPLJEZUFFN7WOLXZTOWHVSAMXHX4WWR3IINLMD` |
+| Verifier | `CDBACVTNIBBEP5AOMIR22PAFJMWVLV75UYXRM4BPCSHG6EHHMGWIRDQC` |
+| Registry | `CA3V524HPVEOEP6CC4ORPLVTQZYNTKGJUYHCS2LUVCPP22CAN4U5ZLTA` |
+| Consumer (market) | `CBSOI56TLT7VB5DLGIHQJSD6LZJ5XTIZQJASD7JA4QOEISNRCJGQUQAM` |
 
-Three feeds are registered (sports consensus, cross-chain PnL, GitHub reputation).
-A **live tamper-rejection** is verified: publishing a spoofed value (`999`) with a
-bogus proof traps the transaction at the verifier and stores nothing — the
-registry reconstructs the public signals from the call args and refuses to write
-a value the verifier doesn't approve. `read_feed(1)` returns `None` afterward.
+(Admin/verifier/publisher are bound atomically at deploy via each contract's
+`__constructor`.) Feeds are registered (sports consensus, cross-chain PnL, GitHub
+reputation). A **live tamper-rejection** is verified: publishing a spoofed value
+(`999`) with a bogus proof traps the transaction at the verifier and stores
+nothing — the registry reconstructs the public signals from the call args and
+refuses to write a value the verifier doesn't approve. `read_feed(1)` returns
+`None` afterward.
 
 > The honest publish path (a *real* Groth16 proof verified on-chain) additionally
 > requires compiling the circuits, which needs the `circom` binary installed

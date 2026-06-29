@@ -1,8 +1,7 @@
 // Build + send the Soroban transactions that drive Soracle: contract init,
 // vkey/feed registration (admin), and the publish path (publisher).
 import { readFileSync } from "node:fs";
-import { Address, nativeToScVal, type xdr } from "@stellar/stellar-sdk";
-import { Keypair } from "@stellar/stellar-sdk";
+import { nativeToScVal, type xdr } from "@stellar/stellar-sdk";
 import { CIRCUIT_ID, circuitArtifacts, loadConfig, type SoracleConfig } from "./config.js";
 import { encodeProof, encodeVkey, feToBytes32, type SnarkProof, type SnarkVkey } from "./encoding.js";
 import { invoke } from "./stellar.js";
@@ -11,35 +10,31 @@ const u32 = (x: number): xdr.ScVal => nativeToScVal(x, { type: "u32" });
 const u64 = (x: number | bigint): xdr.ScVal => nativeToScVal(BigInt(x), { type: "u64" });
 const i128 = (x: bigint): xdr.ScVal => nativeToScVal(x, { type: "i128" });
 const bytes = (b: Uint8Array): xdr.ScVal => nativeToScVal(b, { type: "bytes" });
-const addr = (g: string): xdr.ScVal => new Address(g).toScVal();
 
-/** One-time: init verifier + registry and wire them together. */
-export async function initContracts(cfg: SoracleConfig = loadConfig()): Promise<void> {
-  const admin = Keypair.fromSecret(cfg.adminSecret).publicKey();
-  const publisher = Keypair.fromSecret(cfg.publisherSecret).publicKey();
-
-  await invoke(cfg.verifierId, "init", [addr(admin)], cfg.adminSecret, cfg);
-  await invoke(
-    cfg.registryId,
-    "init",
-    [addr(admin), addr(cfg.verifierId), addr(publisher)],
-    cfg.adminSecret,
-    cfg,
-  );
-}
+// Admin/verifier/publisher are bound atomically by each contract's
+// __constructor at deploy time (see deploy.sh) — no separate init step.
 
 /** Admin: register a circuit's verifying key on the verifier contract. */
 export async function registerVkey(circuit: string, cfg: SoracleConfig = loadConfig()): Promise<void> {
   const { vkey } = circuitArtifacts(circuit);
   const vk: SnarkVkey = JSON.parse(readFileSync(vkey, "utf8"));
   const enc = encodeVkey(vk);
-  const vkScVal = nativeToScVal({
-    alpha: enc.alpha,
-    beta: enc.beta,
-    gamma: enc.gamma,
-    delta: enc.delta,
-    ic: enc.ic,
-  });
+  // Soroban #[contracttype] structs are ScMaps keyed by SYMBOL. A bare
+  // nativeToScVal(obj) produces STRING keys, which fail to decode into the
+  // VerifyingKey struct — so the key type must be forced to 'symbol'. (ic is an
+  // array; the 'bytes' value type is applied per-element -> scvVec<scvBytes>.)
+  const vkScVal = nativeToScVal(
+    { alpha: enc.alpha, beta: enc.beta, gamma: enc.gamma, delta: enc.delta, ic: enc.ic },
+    {
+      type: {
+        alpha: ["symbol", "bytes"],
+        beta: ["symbol", "bytes"],
+        gamma: ["symbol", "bytes"],
+        delta: ["symbol", "bytes"],
+        ic: ["symbol", "bytes"],
+      },
+    },
+  );
   await invoke(
     cfg.verifierId,
     "register_vkey",
@@ -77,7 +72,12 @@ export interface PublishParams {
 /** Publisher: submit a proven feed value. The registry verifies before storing. */
 export async function publishFeed(p: PublishParams, cfg: SoracleConfig = loadConfig()): Promise<void> {
   const enc = encodeProof(p.proof);
-  const proofScVal = nativeToScVal({ a: enc.a, b: enc.b, c: enc.c });
+  // SYMBOL keys (see registerVkey) — bare nativeToScVal makes STRING keys that
+  // won't decode into the Proof struct.
+  const proofScVal = nativeToScVal(
+    { a: enc.a, b: enc.b, c: enc.c },
+    { type: { a: ["symbol", "bytes"], b: ["symbol", "bytes"], c: ["symbol", "bytes"] } },
+  );
   await invoke(
     cfg.registryId,
     "publish",

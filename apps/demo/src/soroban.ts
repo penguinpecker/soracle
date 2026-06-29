@@ -66,17 +66,23 @@ export async function readFeed(feedId: number): Promise<FeedEntry | null> {
  * "tampered value is rejected on-chain" demonstration (DoD #1).
  */
 export async function simulateTamper(feedId: number, spoofedValue: bigint): Promise<{ rejected: boolean; detail: string }> {
-  const bogusProof = nativeToScVal({
-    a: new Uint8Array(64),
-    b: new Uint8Array(128),
-    c: new Uint8Array(64),
-  });
+  // Use strictly-fresh timestamp/epoch (past any stored value) so the publish
+  // clears the freshness checks and actually reaches the verifier, and force
+  // SYMBOL struct keys so the Proof arg decodes (bare nativeToScVal => string keys).
+  const prev = await readFeed(feedId);
+  const now = Math.floor(Date.now() / 1000);
+  const ts = prev ? Math.max(now, Number(prev.timestamp) + 1) : now;
+  const epoch = prev ? Math.max(now, prev.epoch + 1) : now;
+  const bogusProof = nativeToScVal(
+    { a: new Uint8Array(64), b: new Uint8Array(128), c: new Uint8Array(64) },
+    { type: { a: ["symbol", "bytes"], b: ["symbol", "bytes"], c: ["symbol", "bytes"] } },
+  );
   const args = [
     nativeToScVal(feedId, { type: "u32" }),
     nativeToScVal(spoofedValue, { type: "i128" }),
     nativeToScVal(new Uint8Array(32), { type: "bytes" }),
-    nativeToScVal(BigInt(Math.floor(Date.now() / 1000)), { type: "u64" }),
-    nativeToScVal(Math.floor(Date.now() / 1000), { type: "u32" }),
+    nativeToScVal(BigInt(ts), { type: "u64" }),
+    nativeToScVal(epoch, { type: "u32" }),
     bogusProof,
   ];
   const sim = await server().simulateTransaction(buildCall("publish", args));

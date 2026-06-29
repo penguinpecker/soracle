@@ -1,7 +1,7 @@
 #![cfg(test)]
 use super::*;
 use soroban_sdk::{
-    contract, contractimpl, testutils::Address as _, vec, Address, BytesN, Env, Vec,
+    contract, contractimpl, testutils::Address as _, Address, BytesN, Env, Vec,
 };
 
 // --- mock verifiers (stand in for the BN254 pairing check) ---
@@ -32,11 +32,10 @@ fn proof(env: &Env) -> Proof {
 }
 
 fn setup(env: &Env, verifier: &Address) -> (RegistryClient<'static>, Address) {
-    let id = env.register(Registry, ());
-    let client = RegistryClient::new(env, &id);
     let admin = Address::generate(env);
     let publisher = Address::generate(env);
-    client.init(&admin, verifier, &publisher);
+    let id = env.register(Registry, (&admin, verifier, &publisher));
+    let client = RegistryClient::new(env, &id);
     client.register_feed(&1, &1, &BytesN::from_array(env, &[0u8; 32]));
     (RegistryClient::new(env, &id), publisher)
 }

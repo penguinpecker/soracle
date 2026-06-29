@@ -39,9 +39,13 @@ template Predicate(nBits) {
     h.inputs[1] <== salt;
     value_commitment === h.out;
 
-    // 2. range-check the hidden value
+    // 2. range-check BOTH operands. GreaterThan/LessThan are only sound when
+    //    both inputs are < 2^nBits — without a check on the public `threshold`,
+    //    a prover could pick an out-of-field threshold to force outcome_bit.
     component rc = Num2Bits(nBits);
     rc.in <== value;
+    component rcT = Num2Bits(nBits);
+    rcT.in <== threshold;
 
     // 3. outcome_bit == (value > threshold)
     component gt = GreaterThan(nBits);

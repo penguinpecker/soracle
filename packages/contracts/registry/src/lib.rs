@@ -13,7 +13,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, vec, Address, BytesN, Env,
-    IntoVal, Symbol, Vec,
+    IntoVal, Symbol,
 };
 
 #[contracterror]
@@ -21,13 +21,16 @@ use soroban_sdk::{
 #[repr(u32)]
 pub enum Error {
     NotInitialized = 1,
-    AlreadyInitialized = 2,
     UnknownFeed = 3,
     StaleTimestamp = 4,
     StaleEpoch = 5,
     ProofRejected = 6,
     NegativeValue = 7,
 }
+
+// ~1 day / ~31 days in 5s ledgers — keep persistent entries live past any demo window.
+const TTL_THRESHOLD: u32 = 17_280;
+const TTL_EXTEND_TO: u32 = 535_680;
 
 /// Mirror of the verifier's Proof type (cross-contract structs match by field).
 #[contracttype]
@@ -69,15 +72,14 @@ pub struct Registry;
 
 #[contractimpl]
 impl Registry {
-    pub fn init(env: Env, admin: Address, verifier: Address, publisher: Address) -> Result<(), Error> {
-        if env.storage().instance().has(&DataKey::Admin) {
-            return Err(Error::AlreadyInitialized);
-        }
+    /// Admin/verifier/publisher are bound atomically at deploy time (no separate
+    /// init -> no front-running window).
+    pub fn __constructor(env: Env, admin: Address, verifier: Address, publisher: Address) {
         let s = env.storage().instance();
         s.set(&DataKey::Admin, &admin);
         s.set(&DataKey::Verifier, &verifier);
         s.set(&DataKey::Publisher, &publisher);
-        Ok(())
+        s.extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     pub fn set_publisher(env: Env, publisher: Address) -> Result<(), Error> {
@@ -98,6 +100,10 @@ impl Registry {
         env.storage()
             .persistent()
             .set(&DataKey::Meta(feed_id), &FeedMeta { circuit_id, aux1 });
+        // Meta is write-once + read-on-every-publish: keep it from archiving.
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Meta(feed_id), TTL_THRESHOLD, TTL_EXTEND_TO);
         Ok(())
     }
 
@@ -181,6 +187,14 @@ impl Registry {
             circuit_id: meta.circuit_id,
         };
         env.storage().persistent().set(&DataKey::Entry(feed_id), &entry);
+        // keep entry + (write-once) meta + instance live
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Entry(feed_id), TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Meta(feed_id), TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
         env.events().publish(
             (Symbol::new(&env, "feed_updated"), feed_id),
             (value, timestamp, epoch),

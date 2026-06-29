@@ -17,23 +17,11 @@ fn dummy_vk(env: &Env, n_ic: u32) -> VerifyingKey {
 }
 
 #[test]
-fn init_is_one_shot() {
-    let env = Env::default();
-    let id = env.register(Verifier, ());
-    let client = VerifierClient::new(&env, &id);
-    let admin = Address::generate(&env);
-
-    client.init(&admin);
-    assert_eq!(client.try_init(&admin), Err(Ok(Error::AlreadyInitialized)));
-}
-
-#[test]
 fn unknown_vk_errors() {
     let env = Env::default();
-    let id = env.register(Verifier, ());
-    let client = VerifierClient::new(&env, &id);
     let admin = Address::generate(&env);
-    client.init(&admin);
+    let id = env.register(Verifier, (&admin,));
+    let client = VerifierClient::new(&env, &id);
 
     let proof = Proof {
         a: BytesN::from_array(&env, &[0u8; 64]),
@@ -50,10 +38,9 @@ fn unknown_vk_errors() {
 fn public_input_count_must_match_ic() {
     let env = Env::default();
     env.mock_all_auths();
-    let id = env.register(Verifier, ());
-    let client = VerifierClient::new(&env, &id);
     let admin = Address::generate(&env);
-    client.init(&admin);
+    let id = env.register(Verifier, (&admin,));
+    let client = VerifierClient::new(&env, &id);
 
     // vk for a circuit with 6 public inputs => ic length 7
     client.register_vkey(&1, &dummy_vk(&env, 7));
