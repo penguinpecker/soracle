@@ -1,0 +1,21 @@
+{
+  "name": "soracle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Soracle — a verifiable oracle for Stellar. Every published value ships with a Groth16 proof, checked on-chain via BN254 before storage. Don't trust the feed. Verify it.",
+  "workspaces": [
+    "packages/circuits",
+    "packages/sdk",
+    "packages/node",
+    "apps/demo"
+  ],
+  "scripts": {
+    "build:circuits": "npm -w @soracle/circuits run build",
+    "test:contracts": "cargo test --manifest-path packages/contracts/Cargo.toml",
+    "test:node": "npm -w @soracle/node test",
+    "typecheck": "npm -w @soracle/sdk run typecheck && npm -w @soracle/node run typecheck",
+    "node": "npm -w @soracle/node start",
+    "ops": "npm -w @soracle/node run cli --",
+    "demo": "npm -w soracle-demo run dev"
+  }
+}

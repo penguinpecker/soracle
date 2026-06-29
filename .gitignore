@@ -1,0 +1,28 @@
+# deps
+node_modules/
+**/node_modules/
+
+# rust
+packages/contracts/target/
+
+# circuit build artifacts (vkey JSON is force-added in circuits/.gitignore)
+packages/circuits/build/*
+!packages/circuits/build/*.vkey.json
+!packages/circuits/build/*.soroban-vkey.json
+packages/circuits/test/inputs/
+**/*.wtns
+**/*.ptau
+
+# env / secrets
+.env
+**/.env
+!**/.env.example
+
+# build output
+dist/
+**/dist/
+.vite/
+
+# misc
+.DS_Store
+*.log

@@ -1,0 +1,28 @@
+{
+  "name": "@soracle/node",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Soracle off-chain oracle/prover service: fetch -> aggregate -> Groth16 prove -> publish on Soroban",
+  "type": "module",
+  "bin": {
+    "soracle": "./src/cli.ts"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "cli": "tsx src/cli.ts",
+    "tick": "tsx src/cli.ts tick",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^16.0.1",
+    "circomlibjs": "^0.1.7",
+    "dotenv": "^16.4.5",
+    "snarkjs": "^0.7.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,7 @@
+# Build artifacts — only commit vkey JSON (see brief §4)
+build/*
+!build/*.vkey.json
+!build/*.soroban-vkey.json
+node_modules/
+*.wtns
+test/inputs/

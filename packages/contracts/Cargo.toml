@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["verifier", "registry", "consumer-example"]
+
+[workspace.dependencies]
+# Protocol 25 (X-Ray) introduced the BN254 host functions used by the verifier.
+# The reference verifier pins 25.0.2, but its `testutils` macro fails to compile
+# under rustc 1.95+. 26.1.0 is the latest stable line — same BN254 API (a CAP-80
+# superset) and toolchain-current — so we pin there.
+soroban-sdk = "=26.1.0"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true

@@ -1,0 +1,62 @@
+{
+  "_note": "Feeds default to demo mode (deterministic inputs) so the full fetch->prove->publish->verify pipeline runs end-to-end without flaky external APIs. Flip 'type'/'source' to the live values (commented per-adapter in src/adapters/*.ts) for the real-source demo.",
+  "feeds": [
+    {
+      "kind": "sports",
+      "enabled": true,
+      "config": {
+        "feedId": "sports:demo-fixture",
+        "feedNumericId": 1,
+        "refreshSeconds": 45,
+        "quorum": 2,
+        "sources": [
+          { "name": "espn-like", "type": "demo", "event": "demo", "demoScore": [2, 1] },
+          { "name": "sportsdb-like", "type": "demo", "event": "demo", "demoScore": [2, 1] },
+          { "name": "thirdparty", "type": "demo", "event": "demo", "demoScore": [1, 1] }
+        ]
+      }
+    },
+    {
+      "kind": "crosschain-pnl",
+      "enabled": true,
+      "config": {
+        "feedId": "pnl:demo-wallet",
+        "feedNumericId": 2,
+        "refreshSeconds": 60,
+        "source": "demo",
+        "wallet": "0x0000000000000000000000000000000000000001",
+        "blockscoutBase": "https://eth.blockscout.com",
+        "demoRecords": [
+          [100, 150, 5],
+          [50, 80, 2]
+        ]
+      }
+    },
+    {
+      "kind": "github",
+      "enabled": true,
+      "config": {
+        "feedId": "github:demo-dev",
+        "feedNumericId": 3,
+        "refreshSeconds": 120,
+        "source": "demo",
+        "user": "torvalds",
+        "demoScore": 230000
+      }
+    },
+    {
+      "kind": "nft-role",
+      "enabled": false,
+      "config": {
+        "feedId": "nft:demo-role",
+        "feedNumericId": 4,
+        "refreshSeconds": 120,
+        "source": "demo",
+        "wallet": "0x0000000000000000000000000000000000000001",
+        "collection": "0x0000000000000000000000000000000000000002",
+        "blockscoutBase": "https://eth.blockscout.com",
+        "demoCount": 3
+      }
+    }
+  ]
+}
