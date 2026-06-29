@@ -10,6 +10,7 @@ interface Props {
   wallet: string;
   verifierId: string;
   confirming: boolean;
+  recorded: boolean; // true => Freighter signs a recorded tx; false => read-only check
   onConfirm: () => void;
   onReject: () => void;
 }
@@ -26,7 +27,7 @@ const hex = (b: Uint8Array) => {
 };
 const trunc = (s: string) => (s.length > 22 ? s.slice(0, 12) + "…" + s.slice(-6) : s);
 
-export default function TxConfirmModal({ open, feed, data, wallet, verifierId, confirming, onConfirm, onReject }: Props) {
+export default function TxConfirmModal({ open, feed, data, wallet, verifierId, confirming, recorded, onConfirm, onReject }: Props) {
   const enc = data ? encodeProof(data.proof) : null;
   const labels = feed ? LABELS[feed.circuit] : [];
   return (
@@ -82,7 +83,13 @@ export default function TxConfirmModal({ open, feed, data, wallet, verifierId, c
               </div>
             </div>
 
-            <div className="mt-6 flex gap-3">
+            <p className="text-[11px] text-dim mt-4 leading-relaxed">
+              {recorded
+                ? "Freighter will ask you to sign — this submits a recorded transaction you can open on Stellar Expert."
+                : "Read-only: runs the verifier's pairing_check against live ledger state (no fee, no recorded tx). Connect Freighter to submit a recorded transaction."}
+            </p>
+
+            <div className="mt-4 flex gap-3">
               <button onClick={onReject} disabled={confirming} className="flex-1 py-2.5 text-[13px] border border-line text-muted hover:text-text hover:border-dim transition-colors disabled:opacity-40">
                 reject
               </button>

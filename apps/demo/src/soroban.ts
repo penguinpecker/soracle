@@ -83,6 +83,43 @@ function publicInputsScVal(publicSignals: string[]) {
  * the verifier's `verify(vk_id, proof, public_inputs) -> bool` via simulate.
  * Returns the real boolean the BN254 pairing_check produced.
  */
+export interface VerifyResult {
+  ok: boolean;
+  hash?: string; // present only when a real recorded tx was submitted (Freighter)
+}
+
+/**
+ * Submit a REAL, recorded `verify` transaction signed by the user's Freighter
+ * wallet, and return the tx hash (independently checkable on Stellar Expert).
+ * Only possible when the user connected via Freighter (has a key to sign).
+ */
+export async function submitVerifyFreighter(
+  proof: SnarkProof,
+  publicSignals: string[],
+  vkId: number,
+  address: string,
+): Promise<VerifyResult> {
+  const { signTransaction } = await import("@stellar/freighter-api");
+  const srv = server();
+  const account = await srv.getAccount(address);
+  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: CFG.networkPassphrase })
+    .addOperation(
+      new Contract(CFG.verifierId).call("verify", nativeToScVal(vkId, { type: "u32" }), proofScVal(proof), publicInputsScVal(publicSignals)),
+    )
+    .setTimeout(120)
+    .build();
+  const prepared = await srv.prepareTransaction(tx);
+  const signed = await signTransaction(prepared.toXDR(), { networkPassphrase: CFG.networkPassphrase, address });
+  if (signed.error) throw new Error("signature declined");
+  const stx = TransactionBuilder.fromXDR(signed.signedTxXdr, CFG.networkPassphrase);
+  const sent = await srv.sendTransaction(stx);
+  if (sent.status === "ERROR") return { ok: false, hash: sent.hash };
+  const r = await srv.pollTransaction(sent.hash, { attempts: 25, sleepStrategy: () => 1200 });
+  const ok =
+    r.status === Api.GetTransactionStatus.SUCCESS && !!r.returnValue && scValToNative(r.returnValue) === true;
+  return { ok, hash: sent.hash };
+}
+
 export async function verifyOnChain(
   proof: SnarkProof,
   publicSignals: string[],

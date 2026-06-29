@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
 import { useProver, type Circuit, type ProveOutput } from "./useProver.ts";
-import { verifyOnChain } from "../soroban.ts";
 
 // 0 idle · 1 sources · 2 aggregate · 3 commit · 4 prove (awaiting confirm) · 5 verify · 6 settled
 export const STAGES = ["SOURCES", "AGGREGATE", "COMMIT", "PROVE", "VERIFY"] as const;
@@ -17,6 +16,7 @@ export interface OracleState {
   stage: number;
   data: ProveOutput | null;
   verified: boolean | null;
+  hash: string | null;
   error: string | null;
   running: boolean;
   pct: number;
@@ -26,13 +26,14 @@ export interface OracleState {
 export interface RunOutcome {
   data: ProveOutput | null;
   verified: boolean | null;
+  hash?: string;
   error: string | null;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const nowSec = () => Math.floor(Date.now() / 1000);
 const INITIAL: OracleState = {
-  key: null, stage: 0, data: null, verified: null, error: null, running: false, pct: 0, note: "",
+  key: null, stage: 0, data: null, verified: null, hash: null, error: null, running: false, pct: 0, note: "",
 };
 
 /** Drives the shared pipeline. `prepare` runs sources→aggregate→prove and PAUSES
@@ -64,17 +65,20 @@ export function useOracleRun() {
     [prove],
   );
 
-  const confirm = useCallback(async (vkId: number, out: ProveOutput): Promise<boolean> => {
-    patch({ stage: 5, running: true, note: "pairing_check on-chain" });
-    try {
-      const verified = await verifyOnChain(out.proof, out.publicSignals, vkId);
-      patch({ verified, stage: 6, running: false, note: verified ? "verified" : "rejected" });
-      return verified;
-    } catch (e) {
-      patch({ error: (e as Error).message, running: false, stage: 0 });
-      return false;
-    }
-  }, []);
+  const confirm = useCallback(
+    async (submitFn: () => Promise<{ ok: boolean; hash?: string }>): Promise<{ verified: boolean; hash?: string }> => {
+      patch({ stage: 5, running: true, note: "submitting on-chain tx" });
+      try {
+        const r = await submitFn();
+        patch({ verified: r.ok, hash: r.hash ?? null, stage: 6, running: false, note: r.ok ? "verified" : "rejected" });
+        return { verified: r.ok, hash: r.hash };
+      } catch (e) {
+        patch({ error: (e as Error).message, running: false, stage: 0 });
+        return { verified: false };
+      }
+    },
+    [],
+  );
 
   const reset = useCallback(() => setS(INITIAL), []);
   return { state: s, prepare, confirm, reset };

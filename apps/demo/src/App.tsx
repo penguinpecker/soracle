@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { readFeed, CFG, type FeedEntry } from "./soroban.ts";
+import { readFeed, submitVerifyFreighter, verifyOnChain, CFG, type FeedEntry } from "./soroban.ts";
 import { WEB2_FEEDS, WEB3_FEEDS } from "./lib/feeds.ts";
 import { useOracleRun, type RunConfig, type RunOutcome } from "./hooks/useOracleRun.ts";
 import { useWallet } from "./hooks/useWallet.ts";
@@ -64,12 +64,18 @@ export default function App() {
   const onConfirmTx = useCallback(async () => {
     if (!tx) return;
     setConfirming(true);
-    if (wallet.address) await wallet.authorize(`Soracle · verify ${tx.feed.name}`);
-    const verified = await confirm(tx.cfg.vkId, tx.data);
-    setResults((p) => ({ ...p, [tx.cfg.key]: { data: tx.data, verified, error: null } }));
+    const { proof, publicSignals } = tx.data;
+    // Freighter signs + submits a REAL recorded tx; keyless/demo runs the on-chain
+    // read-only check (real verifier execution, no recorded tx).
+    const submitFn =
+      wallet.via === "freighter"
+        ? () => submitVerifyFreighter(proof, publicSignals, tx.cfg.vkId, wallet.address)
+        : async () => ({ ok: await verifyOnChain(proof, publicSignals, tx.cfg.vkId) });
+    const r = await confirm(submitFn);
+    setResults((p) => ({ ...p, [tx.cfg.key]: { data: tx.data, verified: r.verified, hash: r.hash, error: null } }));
     setConfirming(false);
     setTx(null);
-  }, [tx, wallet, confirm]);
+  }, [tx, wallet.via, wallet.address, confirm]);
 
   const onRejectTx = useCallback(() => { setTx(null); setConfirming(false); reset(); }, [reset]);
 
@@ -107,10 +113,17 @@ export default function App() {
             <PipelineSpine stage={state.stage} verified={state.verified} pct={state.pct} note={state.note} error={state.error} />
 
             <section id="consoles" className="relative z-10 scroll-mt-6">
-              <div className="flex items-baseline justify-between mb-5">
+              <div className="flex items-baseline justify-between mb-2">
                 <h2 className="label">Initiate a feed</h2>
-                <span className="label text-dim">you drive · proof per feed · confirm in-wallet</span>
+                <span className="label text-dim">you drive · proof per feed · real tx</span>
               </div>
+              <p className="text-[12px] text-dim mb-5 max-w-2xl leading-relaxed">
+                You play the data sources — set what each reports. A green check means the
+                proof that your <em className="not-italic text-muted">result follows from those inputs</em> verified
+                on-chain (with a tx you can open). It proves honest computation, not that the
+                inputs are true — that’s the trust model below. So edit the ETH price freely; the
+                point is the consensus + proof, not a live price oracle.
+              </p>
 
               <div className="label !text-[10px] mb-3" style={{ color: "var(--muted)" }}>◦ web2 sources</div>
               <div className="grid md:grid-cols-3 gap-4">{WEB2_FEEDS.map((f, i) => renderConsole(f, i + 1))}</div>
@@ -141,6 +154,7 @@ export default function App() {
         wallet={wallet.address}
         verifierId={CFG.verifierId}
         confirming={confirming}
+        recorded={wallet.via === "freighter"}
         onConfirm={onConfirmTx}
         onReject={onRejectTx}
       />

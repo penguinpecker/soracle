@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import type { FeedDef } from "../lib/feeds.ts";
 import { encodeScore, fieldFromString } from "../lib/feeds.ts";
 import type { OracleState, RunConfig, RunOutcome } from "../hooks/useOracleRun.ts";
+import { CFG } from "../soroban.ts";
 import HeldSignal from "./HeldSignal.tsx";
 
 interface Props {
@@ -36,8 +37,17 @@ const quorumOf = (vals: number[]) => {
 export default function FeedConsole({ feed, n, wallet, active, state, result, onInitiate }: Props) {
   const k = feed.inputKind;
   const [scores, setScores] = useState([{ h: 2, a: 1 }, { h: 2, a: 1 }, { h: 1, a: 1 }]);
-  const [prices, setPrices] = useState([3200, 3200, 3198]);
+  const [prices, setPrices] = useState([1600, 1600, 1598]);
   const [gh, setGh] = useState({ followers: 228451, repos: 11 });
+
+  // seed the price feed with the REAL current ETH price (so the default isn't fiction)
+  useEffect(() => {
+    if (k !== "prices") return;
+    fetch("https://api.coinbase.com/v2/prices/ETH-USD/spot")
+      .then((r) => r.json())
+      .then((j) => { const p = Math.round(Number(j?.data?.amount)); if (p > 0) setPrices([p, p, p - 2]); })
+      .catch(() => {});
+  }, [k]);
   const [trades, setTrades] = useState([{ buy: 1200, sell: 1850, fee: 12 }, { buy: 900, sell: 1180, fee: 9 }]);
   const [thr, setThr] = useState(feed.id === 6 ? { value: 540000, threshold: 250000 } : { value: 142000, threshold: 100000 });
 
@@ -84,6 +94,27 @@ export default function FeedConsole({ feed, n, wallet, active, state, result, on
           <div className="label !text-[9px] mt-1" style={{ color: verified ? "var(--verified)" : result?.verified === false ? "var(--alarm)" : "var(--dim)" }}>
             {verified ? "✓ verified on-chain" : result?.verified === false ? "✗ rejected" : feed.unit}
           </div>
+          {verified && result?.hash ? (
+            <a
+              href={`https://stellar.expert/explorer/testnet/tx/${result.hash}`}
+              target="_blank"
+              rel="noreferrer"
+              className="block label !text-[9px] mt-1 underline underline-offset-2 decoration-line hover:opacity-80"
+              style={{ color: "var(--verified)" }}
+            >
+              tx {result.hash.slice(0, 6)}…{result.hash.slice(-4)} ↗
+            </a>
+          ) : verified ? (
+            <a
+              href={`https://stellar.expert/explorer/testnet/contract/${CFG.verifierId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="block label !text-[9px] mt-1 underline underline-offset-2 decoration-line hover:opacity-80"
+              style={{ color: "var(--dim)" }}
+            >
+              read-only · verifier ↗
+            </a>
+          ) : null}
         </div>
       </div>
 
