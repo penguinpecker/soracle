@@ -53,6 +53,11 @@ export default function WalletModal({ open, busy, onClose, onFreighter, onManual
             >
               {busy ? "opening Freighter…" : "🔑 Connect Freighter"}
             </button>
+            <p className="text-[11px] text-dim mt-2 leading-relaxed">
+              Freighter is Stellar’s browser wallet — the ecosystem’s MetaMask
+              (<a href="https://freighter.app" target="_blank" rel="noreferrer" className="underline underline-offset-2 decoration-line hover:text-muted">freighter.app</a>).
+              Don’t have it? Just use any address below — no install needed.
+            </p>
 
             <div className="flex items-center gap-3 my-5">
               <div className="h-px flex-1 bg-line" />
