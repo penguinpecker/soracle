@@ -118,11 +118,11 @@ export default function App() {
                 <span className="label text-dim">you drive · proof per feed · real tx</span>
               </div>
               <p className="text-[12px] text-dim mb-5 max-w-2xl leading-relaxed">
-                You play the data sources — set what each reports. A green check means the
-                proof that your <em className="not-italic text-muted">result follows from those inputs</em> verified
-                on-chain (with a tx you can open). It proves honest computation, not that the
-                inputs are true — that’s the trust model below. So edit the ETH price freely; the
-                point is the consensus + proof, not a live price oracle.
+                Four feeds carry a <span className="text-muted">live</span> source (GitHub, ETH/USD across 3 exchanges,
+                and two on-chain via Blockscout); the two marked <span className="text-muted">illustrative</span> need
+                API keys / a backend (sports, social), so you set those values. Either way a green check means the
+                proof that the <em className="not-italic text-muted">result follows from the committed inputs</em> verified
+                on-chain (open the tx). The ZK proves honest computation, not that the raw inputs are true — that’s the trust model below.
               </p>
 
               <div className="label !text-[10px] mb-3" style={{ color: "var(--muted)" }}>◦ web2 sources</div>

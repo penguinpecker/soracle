@@ -1,5 +1,7 @@
 // Feed catalogue: 3 web2 + 3 web3, spanning all three circuit families
-// (consensus / derivation / predicate). Shared by every component.
+// (consensus / derivation / predicate). 4 pull a REAL live source; 2 are
+// clearly marked illustrative (sports needs a keyed/CORS-blocked API + a live
+// fixture; social needs API keys — neither is honestly doable client-side).
 
 export const FIELD =
   21888242871839275222246405745257275088548364400416034343698204186575808495617n;
@@ -17,10 +19,11 @@ export interface FeedDef {
   name: string;
   subjectLabel: string;
   source: string;
+  sourceUrl?: string; // shown as a link when live
+  chainAddress?: string; // for live web3 feeds
+  live: boolean; // true => seeded from a real source on load
   unit: string;
-  /** how a raw published value renders for humans */
   format: (v: bigint) => string;
-  /** one-line claim the proof attests (shown in the tx-confirm popup) */
   claim: string;
 }
 
@@ -28,23 +31,23 @@ const num = (v: bigint) => v.toLocaleString();
 
 export const WEB2_FEEDS: FeedDef[] = [
   {
-    id: 1, web: "WEB2", circuit: "consensus", vkId: 1, inputKind: "scores",
-    name: "Football final score", subjectLabel: "Arsenal vs. Spurs",
-    source: "3 sports APIs · 2-of-3 quorum", unit: "score",
+    id: 1, web: "WEB2", circuit: "consensus", vkId: 1, inputKind: "scores", live: false,
+    name: "Football final score", subjectLabel: "illustrative · you set the sources",
+    source: "sports APIs (need keys/proxy)", unit: "score",
     format: (v) => `${v / 1000n}–${v % 1000n}`,
-    claim: "the score ≥2 of 3 independent APIs agree on — no single source can move it",
+    claim: "the score ≥2 of 3 independent sources agree on — no single source can move it",
   },
   {
-    id: 3, web: "WEB2", circuit: "derivation", vkId: 2, inputKind: "reputation",
+    id: 3, web: "WEB2", circuit: "derivation", vkId: 2, inputKind: "reputation", live: true,
     name: "Developer reputation", subjectLabel: "github.com/torvalds",
-    source: "GitHub public API · in-circuit Σ", unit: "rep",
+    source: "GitHub public API", sourceUrl: "https://api.github.com/users/torvalds", unit: "rep",
     format: num,
-    claim: "reputation = followers + public repos, computed honestly in-circuit",
+    claim: "reputation = followers + public repos, read live from GitHub and summed in-circuit",
   },
   {
-    id: 5, web: "WEB2", circuit: "predicate", vkId: 3, inputKind: "threshold",
-    name: "Creator reach", subjectLabel: "social handle (confidential)",
-    source: "social API · zero-knowledge threshold", unit: "bit",
+    id: 5, web: "WEB2", circuit: "predicate", vkId: 3, inputKind: "threshold", live: false,
+    name: "Creator reach", subjectLabel: "illustrative · you set the metric",
+    source: "social API (needs keys/proxy)", unit: "bit",
     format: (v) => (v === 1n ? "ABOVE ✓" : "BELOW"),
     claim: "the follower count clears the threshold — without revealing the exact number",
   },
@@ -52,25 +55,27 @@ export const WEB2_FEEDS: FeedDef[] = [
 
 export const WEB3_FEEDS: FeedDef[] = [
   {
-    id: 2, web: "WEB3", circuit: "derivation", vkId: 2, inputKind: "records",
-    name: "Wallet realized PnL", subjectLabel: "0x71C…F19 · Base",
-    source: "on-chain trade records · in-circuit Σ", unit: "USDC",
+    id: 2, web: "WEB3", circuit: "derivation", vkId: 2, inputKind: "records", live: true,
+    name: "Wallet net ERC-20 flow", subjectLabel: "vitalik.eth · Ethereum",
+    source: "Blockscout · live transfers", sourceUrl: "https://eth.blockscout.com/address/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    chainAddress: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", unit: "tokens",
     format: num,
-    claim: "realized PnL = Σ(sell − buy − fee) over authenticated on-chain trades",
+    claim: "net flow = Σ(received − sent) over real on-chain ERC-20 transfers",
   },
   {
-    id: 4, web: "WEB3", circuit: "consensus", vkId: 1, inputKind: "prices",
-    name: "ETH / USD spot", subjectLabel: "3 RPC price sources",
-    source: "3 chain oracles · 2-of-3 quorum", unit: "USD",
+    id: 4, web: "WEB3", circuit: "consensus", vkId: 1, inputKind: "prices", live: true,
+    name: "ETH / USD spot", subjectLabel: "Coinbase · CoinGecko · Kraken",
+    source: "3 live price sources · 2-of-3 quorum", sourceUrl: "https://www.coinbase.com/price/ethereum", unit: "USD",
     format: num,
-    claim: "the price ≥2 of 3 independent chain oracles agree on",
+    claim: "the price ≥2 of 3 independent exchanges agree on (rounded to $5 for quorum)",
   },
   {
-    id: 6, web: "WEB3", circuit: "predicate", vkId: 3, inputKind: "threshold",
-    name: "Treasury solvency", subjectLabel: "DAO multisig · Base",
-    source: "chain balance · zero-knowledge threshold", unit: "bit",
+    id: 6, web: "WEB3", circuit: "predicate", vkId: 3, inputKind: "threshold", live: true,
+    name: "Treasury solvency", subjectLabel: "Ethereum Foundation · Ethereum",
+    source: "Blockscout · live balance", sourceUrl: "https://eth.blockscout.com/address/0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAE",
+    chainAddress: "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAE", unit: "bit",
     format: (v) => (v === 1n ? "SOLVENT ✓" : "BELOW"),
-    claim: "the treasury balance clears the solvency floor — exact balance stays private",
+    claim: "the real on-chain balance clears the solvency floor — exact balance stays private",
   },
 ];
 

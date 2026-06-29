@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import type { FeedDef } from "../lib/feeds.ts";
 import { encodeScore, fieldFromString } from "../lib/feeds.ts";
+import { fetchEthPrices, fetchGithub, fetchWalletFlow, fetchBalanceEth } from "../lib/sources.ts";
 import type { OracleState, RunConfig, RunOutcome } from "../hooks/useOracleRun.ts";
 import { CFG } from "../soroban.ts";
 import HeldSignal from "./HeldSignal.tsx";
+
+type LiveStatus = "idle" | "loading" | "live" | "sample";
 
 interface Props {
   feed: FeedDef;
@@ -39,15 +42,25 @@ export default function FeedConsole({ feed, n, wallet, active, state, result, on
   const [scores, setScores] = useState([{ h: 2, a: 1 }, { h: 2, a: 1 }, { h: 1, a: 1 }]);
   const [prices, setPrices] = useState([1600, 1600, 1598]);
   const [gh, setGh] = useState({ followers: 228451, repos: 11 });
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>(feed.live ? "loading" : "idle");
 
-  // seed the price feed with the REAL current ETH price (so the default isn't fiction)
+  // Live feeds seed their inputs from a real source on load (still editable).
   useEffect(() => {
-    if (k !== "prices") return;
-    fetch("https://api.coinbase.com/v2/prices/ETH-USD/spot")
-      .then((r) => r.json())
-      .then((j) => { const p = Math.round(Number(j?.data?.amount)); if (p > 0) setPrices([p, p, p - 2]); })
-      .catch(() => {});
-  }, [k]);
+    if (!feed.live) return;
+    let cancelled = false;
+    setLiveStatus("loading");
+    (async () => {
+      let ok = false;
+      try {
+        if (k === "prices") { const p = await fetchEthPrices(); if (p && !cancelled) { setPrices(p); ok = true; } }
+        else if (k === "reputation") { const g = await fetchGithub("torvalds"); if (g && !cancelled) { setGh(g); ok = true; } }
+        else if (k === "records") { const r = await fetchWalletFlow(feed.chainAddress!); if (r && !cancelled) { setTrades(r); ok = true; } }
+        else if (k === "threshold") { const bal = await fetchBalanceEth(feed.chainAddress!); if (bal != null && !cancelled) { setThr({ value: bal, threshold: 100 }); ok = true; } }
+      } catch { /* fall through to sample */ }
+      if (!cancelled) setLiveStatus(ok ? "live" : "sample");
+    })();
+    return () => { cancelled = true; };
+  }, [feed.live, feed.chainAddress, k]);
   const [trades, setTrades] = useState([{ buy: 1200, sell: 1850, fee: 12 }, { buy: 900, sell: 1180, fee: 9 }]);
   const [thr, setThr] = useState(feed.id === 6 ? { value: 540000, threshold: 250000 } : { value: 142000, threshold: 100000 });
 
@@ -74,7 +87,7 @@ export default function FeedConsole({ feed, n, wallet, active, state, result, on
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }}
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
       className="panel panel-scan p-5 sm:p-6" style={{ borderColor: verified ? "var(--verified)" : "var(--line)" }}
     >
@@ -84,8 +97,16 @@ export default function FeedConsole({ feed, n, wallet, active, state, result, on
             <span className="font-display font-black text-dim text-xs tabular">{String(n).padStart(2, "0")}</span>
             <span className="text-text font-medium text-[15px]">{feed.name}</span>
             <span className="label !text-[9px] border px-1 py-0.5" style={{ color: "var(--dim)", borderColor: "var(--line)" }}>{feed.circuit}</span>
+            {feed.live ? (
+              <a href={feed.sourceUrl} target="_blank" rel="noreferrer" className="label !text-[9px] flex items-center gap-1" style={{ color: liveStatus === "sample" ? "var(--alarm)" : "var(--process)" }}>
+                <span className="size-1.5 rounded-full" style={{ background: liveStatus === "live" ? "var(--process)" : liveStatus === "loading" ? "var(--muted)" : "var(--alarm)" }} />
+                {liveStatus === "loading" ? "fetching…" : liveStatus === "sample" ? "source down" : "live ↗"}
+              </a>
+            ) : (
+              <span className="label !text-[9px] border px-1 py-0.5" style={{ color: "var(--dim)", borderColor: "var(--line)" }}>illustrative</span>
+            )}
           </div>
-          <div className="text-[11px] text-dim mt-1">{feed.subjectLabel}</div>
+          <div className="text-[11px] text-dim mt-1">{feed.subjectLabel} · {feed.source}</div>
         </div>
         <div className="text-right shrink-0">
           <div className="font-display font-black text-[26px] leading-none tabular" style={{ color: verified ? "var(--verified)" : "var(--text)" }}>
