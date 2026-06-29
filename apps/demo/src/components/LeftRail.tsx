@@ -4,11 +4,11 @@ interface Props {
   stage: number;
   verified: boolean | null;
   address: string;
-  connecting: boolean;
+  busy: boolean;
   onConnect: () => void;
 }
 
-export default function LeftRail({ stage, verified, address, connecting, onConnect }: Props) {
+export default function LeftRail({ stage, verified, address, busy, onConnect }: Props) {
   return (
     <aside className="lg:sticky lg:top-0 lg:h-screen flex lg:flex-col justify-between py-6 lg:py-8 lg:pr-8 lg:border-r border-line">
       <div>
@@ -48,7 +48,7 @@ export default function LeftRail({ stage, verified, address, connecting, onConne
           className="w-full text-left border px-3 py-2 transition-colors"
           style={{ borderColor: address ? "var(--verified)" : "var(--line)", color: address ? "var(--verified)" : "var(--muted)" }}
         >
-          {address ? `◦ ${address.slice(0, 4)}…${address.slice(-4)}` : connecting ? "connecting…" : "connect freighter →"}
+          {address ? `◦ ${address.slice(0, 4)}…${address.slice(-4)}` : busy ? "connecting…" : "connect wallet →"}
         </button>
       </div>
     </aside>

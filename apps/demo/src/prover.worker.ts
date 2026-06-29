@@ -6,17 +6,19 @@
 // makes snarkjs/fastfile treat strings as Node paths). poseidon-lite is
 // byte-identical to the in-circuit circomlib Poseidon.
 import { groth16 } from "snarkjs";
-import { poseidon4, poseidon16 } from "poseidon-lite";
+import { poseidon2, poseidon4, poseidon16 } from "poseidon-lite";
 
 const DEMO_SALT = 1234567890n;
 const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const ART: Record<string, { wasm: string; zkey: string }> = {
   consensus: { wasm: "/circuits/consensus.wasm", zkey: "/circuits/consensus.zkey" },
   derivation: { wasm: "/circuits/derivation.wasm", zkey: "/circuits/derivation.zkey" },
+  predicate: { wasm: "/circuits/predicate.wasm", zkey: "/circuits/predicate.zkey" },
 };
 const cache: Record<string, { wasm?: Uint8Array; zkey?: Uint8Array }> = {
   consensus: {},
   derivation: {},
+  predicate: {},
 };
 
 function post(msg: any) {
@@ -40,7 +42,7 @@ function quorum(values: bigint[]): bigint | null {
 
 self.onmessage = async (e: MessageEvent) => {
   const { circuit, payload, timestamp, epoch } = e.data as {
-    circuit: "consensus" | "derivation";
+    circuit: "consensus" | "derivation" | "predicate";
     payload: any;
     timestamp: number;
     epoch: number;
@@ -70,7 +72,7 @@ self.onmessage = async (e: MessageEvent) => {
         values: vals.map((v) => v.toString()),
         salt: DEMO_SALT.toString(),
       };
-    } else {
+    } else if (circuit === "derivation") {
       // pad to M=5 records
       const recs = (payload.records as { buy: string; sell: string; fee: string }[]).slice(0, 5);
       while (recs.length < 5) recs.push({ buy: "0", sell: "0", fee: "0" });
@@ -91,6 +93,24 @@ self.onmessage = async (e: MessageEvent) => {
         buy: buy.map((v) => v.toString()),
         sell: sell.map((v) => v.toString()),
         fee: fee.map((v) => v.toString()),
+        salt: DEMO_SALT.toString(),
+      };
+    } else {
+      // predicate — confidential threshold (value stays private; only the bit is public)
+      const value = BigInt(payload.value);
+      const threshold = BigInt(payload.threshold);
+      result = value > threshold ? 1n : 0n;
+      post({ type: "progress", stage: "Computing Poseidon commitment", pct: 40 });
+      commitment = poseidon2([value, DEMO_SALT]) as bigint;
+      input = {
+        feed_id: String(payload.feedId ?? 5),
+        subject_hash: String(payload.subjectHash ?? "0"),
+        predicate_id: String(payload.predicateId ?? 1),
+        threshold: threshold.toString(),
+        outcome_bit: result.toString(),
+        value_commitment: commitment.toString(),
+        timestamp: String(timestamp),
+        value: value.toString(),
         salt: DEMO_SALT.toString(),
       };
     }

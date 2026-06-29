@@ -8,7 +8,7 @@ export interface ProveOutput {
   publicSignals: string[];
 }
 export type OnProgress = (p: { stage: string; pct: number }) => void;
-export type Circuit = "consensus" | "derivation";
+export type Circuit = "consensus" | "derivation" | "predicate";
 
 /** Lazily spins up the proving Web Worker and runs one proof per call. */
 export function useProver() {

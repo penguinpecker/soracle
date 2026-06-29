@@ -1,6 +1,6 @@
 import { motion, type Variants } from "motion/react";
 import type { FeedEntry } from "../soroban.ts";
-import { FEEDS } from "../lib/feeds.ts";
+import { WEB2_FEEDS } from "../lib/feeds.ts";
 import HeldSignal from "./HeldSignal.tsx";
 
 interface Props {
@@ -18,7 +18,7 @@ const rise: Variants = {
 };
 
 export default function Hero({ feed1, onRun }: Props) {
-  const f = FEEDS[0];
+  const f = WEB2_FEEDS[0];
   return (
     <section className="relative z-10 pt-6 sm:pt-10 pb-14 grid lg:grid-cols-[1.25fr_1fr] gap-10 lg:gap-16 items-center">
       <div>
