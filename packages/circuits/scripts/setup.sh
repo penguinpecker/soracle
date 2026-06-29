@@ -26,8 +26,7 @@ for c in "${CIRCUITS[@]}"; do
   echo "==> groth16 setup: $c"
   snarkjs groth16 setup "$OUT/$c.r1cs" "$PTAU" "$OUT/${c}_0000.zkey"
   echo "==> finalize zkey with public beacon: $c"
-  snarkjs zkey beacon "$OUT/${c}_0000.zkey" "$OUT/${c}.zkey" "$BEACON" 10 \
-    -n "soracle hackathon beacon"
+  snarkjs zkey beacon "$OUT/${c}_0000.zkey" "$OUT/${c}.zkey" "$BEACON" 10 -n="soracle-beacon"
   rm -f "$OUT/${c}_0000.zkey"
 done
 

@@ -24,17 +24,26 @@ The contracts are deployed and initialized on Testnet:
 | Consumer (market) | `CBSOI56TLT7VB5DLGIHQJSD6LZJ5XTIZQJASD7JA4QOEISNRCJGQUQAM` |
 
 (Admin/verifier/publisher are bound atomically at deploy via each contract's
-`__constructor`.) Feeds are registered (sports consensus, cross-chain PnL, GitHub
-reputation). A **live tamper-rejection** is verified: publishing a spoofed value
-(`999`) with a bogus proof traps the transaction at the verifier and stores
-nothing — the registry reconstructs the public signals from the call args and
-refuses to write a value the verifier doesn't approve. `read_feed(1)` returns
-`None` afterward.
+`__constructor`; both verifying keys registered; contract bytecode hashes match
+the local build — `stellar contract info hash` == `shasum` of the deployed wasm.)
 
-> The honest publish path (a *real* Groth16 proof verified on-chain) additionally
-> requires compiling the circuits, which needs the `circom` binary installed
-> locally — see Quickstart step 1. Once a verifying key is registered, a bad proof
-> fails at the BN254 `pairing_check` (`ProofRejected`) and a valid one is stored.
+**The honest path is verified end-to-end on Testnet.** All three feeds were
+published by the off-chain node — fetch → aggregate → snarkjs Groth16 prove →
+`registry.publish` — and each value was stored only after a **real proof passed
+the BN254 `pairing_check` on-chain**:
+
+| feed | circuit | proven value |
+|---|---|---|
+| 1 sports consensus | consensus | `2001` (score 2–1, quorum 2/3) |
+| 2 cross-chain PnL | derivation | `73` (Σ sell−buy−fee) |
+| 3 GitHub reputation | derivation | `230000` |
+
+**Tamper rejection (verified live):** taking the *real* proof for `value=2001` and
+publishing it with a spoofed `value=2002` makes the registry bind `2002` into the
+public inputs; the verifier's `pairing_check` runs and returns **`false`** →
+`Error #6 ProofRejected`, nothing stored. (A valid proof returns `true` and is
+stored — same code path, opposite outcome — which also confirms the snarkjs↔BN254
+G2 coordinate encoding is correct.)
 
 ---
 

@@ -15,6 +15,7 @@ for c in "${CIRCUITS[@]}"; do
   circom "$SRC/$c.circom" \
     --r1cs --wasm --sym \
     -l node_modules \
+    -l ../../node_modules \
     -l "$SRC" \
     -o "$OUT"
   # report constraint count (keep each circuit < ~50k — brief §3)
