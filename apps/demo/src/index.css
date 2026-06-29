@@ -1,23 +1,155 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   SORACLE — "Lab Instrument" theme
+   Graphite everywhere. Lime ONLY after a real on-chain verify. Teal only while
+   proving. Amber only on reject. No purple, no pure red, no #000.
+   ========================================================================== */
 :root {
+  --bg: #0a0b0d;
+  --panel: #111316;
+  --panel-2: #15181c;
+  --line: #1e2127;
+  --grid: rgba(231, 233, 234, 0.045);
+  --text: #e7e9ea;
+  --muted: #8a9099;
+  --dim: #5a6068;
+  --verified: #c6f24e;
+  --verified-dim: rgba(198, 242, 78, 0.14);
+  --process: #5be0c8;
+  --process-dim: rgba(91, 224, 200, 0.12);
+  --alarm: #f2a93b;
+  --alarm-dim: rgba(242, 169, 59, 0.12);
   color-scheme: dark;
 }
 
+@theme {
+  --color-bg: #0a0b0d;
+  --color-panel: #111316;
+  --color-line: #1e2127;
+  --color-text: #e7e9ea;
+  --color-muted: #8a9099;
+  --color-dim: #5a6068;
+  --color-verified: #c6f24e;
+  --color-process: #5be0c8;
+  --color-alarm: #f2a93b;
+  --font-display: "Fraunces", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
 }
-
 body {
   margin: 0;
-  background: #06070a;
-  color: #e7e9ee;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
+/* fine instrument grid, faded toward the edges */
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px 32px);
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 35%, #000 55%, transparent 100%);
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 35%, #000 55%, transparent 100%);
+}
+
+/* turbulence grain overlay */
+.bg-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
 .mono {
-  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-family: var(--font-mono);
+}
+
+/* uppercase instrument label */
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* instrument panel */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.panel-scan {
+  position: relative;
+}
+.panel-scan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background: repeating-linear-gradient(transparent 0 2px, rgba(0, 0, 0, 0.25) 2px 3px);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* hero serif needs the high optical size or it reads like body text */
+.hero-serif {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-variation-settings: "opsz" 140;
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--verified);
+  color: #0a0b0d;
+}
+
+/* thin scrollbar that matches the instrument */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border: 2px solid var(--bg);
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }
